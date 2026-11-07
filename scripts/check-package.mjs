@@ -1,0 +1,10 @@
+import yauzl from 'yauzl';
+import assert from 'node:assert/strict';
+import {createHash} from 'node:crypto';
+import {readFileSync} from 'node:fs';
+const version=JSON.parse(readFileSync('package.json','utf8')).version;
+const path=`release/정보과제제출함-${version}-소스와빌드.zip`;
+const entries=await new Promise((resolve,reject)=>yauzl.open(path,{lazyEntries:true},(e,z)=>{if(e)return reject(e);const names=[];z.on('error',reject);z.on('end',()=>resolve(names));z.on('entry',entry=>{names.push(entry.fileName);z.openReadStream(entry,(e,s)=>{if(e)return reject(e);s.on('error',reject);s.resume();s.on('end',()=>z.readEntry());});});z.readEntry();}));
+for(const required of ['server/app.mjs','dist/index.html','README.md','THIRD-PARTY-NOTICES.md','pnpm-lock.yaml','test-results/server.txt'])assert.ok(entries.includes('정보과제제출함/'+required),required);
+assert.ok(!entries.some(n=>n.split('/').some(p=>p==='node_modules'||p==='.env'||p==='data.sqlite')));
+console.log(JSON.stringify({archive:path,entries:entries.length,extraction:'all entries decoded successfully',sha256:createHash('sha256').update(readFileSync(path)).digest('hex')},null,2));

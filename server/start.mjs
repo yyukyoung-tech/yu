@@ -1,0 +1,16 @@
+import { createServer as httpsServer } from 'node:https';
+import { readFileSync } from 'node:fs';
+import { createApp } from './app.mjs';
+import { defaultDataDir } from './db.mjs';
+const origin=process.env.APP_ORIGIN||'http://127.0.0.1:4310';
+const url=new URL(origin);const host=process.env.HOST||'127.0.0.1';
+if(!['127.0.0.1','localhost','::1'].includes(host)&&url.protocol!=='https:')throw new Error('학교 접속은 HTTPS APP_ORIGIN 설정이 필요합니다.');
+if(process.env.NODE_ENV==='production'&&url.protocol!=='https:')throw new Error('실제 운영에는 HTTPS가 필요합니다.');
+if(url.protocol==='https:'&&!process.env.TLS_CERT&&process.env.TRUST_PROXY!=='1')throw new Error('HTTPS 인증서 또는 승인된 역방향 프록시를 설정하세요.');
+const ctx=createApp({dataDir:defaultDataDir(),origin,secureCookies:url.protocol==='https:',trustProxy:process.env.TRUST_PROXY==='1'});
+const port=Number(process.env.PORT||4310);
+const server=process.env.TLS_CERT?httpsServer({cert:readFileSync(process.env.TLS_CERT),key:readFileSync(process.env.TLS_KEY)},ctx.app).listen(port,host):ctx.app.listen(port,host);
+server.requestTimeout=5*60*1000;server.headersTimeout=60*1000;
+server.on('listening',()=>console.log(`정보 과제 제출함: ${origin}\n교사 화면: ${origin}/teacher`));
+server.on('error',()=>{console.error('서버를 시작하지 못했습니다. 포트 사용 여부와 인증서·저장소 권한을 확인하세요.');ctx.close();process.exitCode=1;});
+for(const sig of ['SIGINT','SIGTERM'])process.on(sig,()=>server.close(()=>{ctx.close();process.exit(0);}));

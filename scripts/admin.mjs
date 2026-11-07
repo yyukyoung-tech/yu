@@ -1,0 +1,6 @@
+import { createInterface } from 'node:readline/promises';
+import { emitKeypressEvents } from 'node:readline';
+import { openDb, defaultDataDir } from '../server/db.mjs';
+import { provisionAdmin } from '../server/auth.mjs';
+async function secret(prompt){if(!process.stdin.isTTY)throw new Error('비밀번호 보호를 위해 대화형 터미널에서 실행하세요.');process.stdout.write(prompt);emitKeypressEvents(process.stdin);process.stdin.setRawMode(true);return new Promise((resolve,reject)=>{let s='';function done(){process.stdin.off('keypress',handler);process.stdin.setRawMode(false);process.stdout.write('\n');}function handler(ch,key){if(key?.ctrl&&key.name==='c'){done();reject(new Error('취소했습니다.'));}else if(key?.name==='return'){done();resolve(s);}else if(key?.name==='backspace')s=s.slice(0,-1);else if(ch&&!key?.ctrl)s+=ch;}process.stdin.on('keypress',handler);});}
+const rl=createInterface({input:process.stdin,output:process.stdout});const username=(await rl.question('교사 아이디 (영문/숫자 3~40자): ')).trim();rl.close();const password=await secret('비밀번호 (12자 이상, 화면에 표시하지 않음): ');const confirm=await secret('비밀번호 다시 입력: ');if(password!==confirm)throw new Error('비밀번호가 다릅니다.');const db=openDb(defaultDataDir());try{await provisionAdmin(db,username,password);console.log('교사 계정을 저장했습니다. 기존 로그인 세션은 종료됩니다.');}finally{db.close();process.stdin.pause();}
